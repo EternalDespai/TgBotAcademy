@@ -52,7 +52,7 @@ Windows / Linux / macOS (скрипт start_bot.bat — только Windows)
 
 Установи Python 3.12.
 
-Открой папку проекта MyBotAcademy.
+Открой папку проекта.
 
 Настройка токена
 Токен хранится в bot_app/config.py.
