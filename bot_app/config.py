@@ -1,2 +1,2 @@
-BOT_TOKEN = ("8585037348:AAF1DwuHbDwbvoEC21cDx2alY_OFAH3W59w")
+BOT_TOKEN = ("Paste_Your_Token")
 
