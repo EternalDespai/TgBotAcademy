@@ -3,11 +3,15 @@ import re
 from collections import defaultdict, Counter
 import openpyxl
 
+
 THEME_REGEX = re.compile(r"^Урок\s*№\s*\d+\.\s*Тема:\s*.+$", re.IGNORECASE)
 
+
 def detect_excel_type(data: bytes) -> str:
-    if len(data) >= 2 and data[0:2] == b"PK": return "xlsx"
+    if len(data) >= 2 and data[0:2] == b"PK":
+        return "xlsx"
     return "unknown"
+
 
 # --- Метод 1: Расписание ---
 def report_schedule_count(wb) -> str:
@@ -20,9 +24,11 @@ def report_schedule_count(wb) -> str:
                     line = line.strip()
                     if line.startswith("Предмет:"):
                         subj = line.replace("Предмет:", "", 1).strip()
-                        if subj: counter[subj] += 1
+                        if subj:
+                            counter[subj] += 1
 
-    if not counter: return "Не нашел строк 'Предмет:'."
+    if not counter:
+        return "Не нашел строк 'Предмет:'."
 
     lines = ["📊 <b>Количество пар по предметам:</b>\n"]
     for name, cnt in counter.most_common():
@@ -41,21 +47,26 @@ def report_bad_topics_grouped(wb) -> str:
     for r_idx, row in enumerate(ws.iter_rows(min_row=1, max_row=10, values_only=True)):
         for c_idx, val in enumerate(row):
             if isinstance(val, str):
-                if "Тема урока" in val: topic_col_idx = c_idx
-                if "Предмет" in val: subj_col_idx = c_idx
+                if "Тема урока" in val:
+                    topic_col_idx = c_idx
+                if "Предмет" in val:
+                    subj_col_idx = c_idx
         if topic_col_idx != -1:
             header_row = r_idx
             break
 
-    if topic_col_idx == -1: topic_col_idx = 5
-    if subj_col_idx == -1: subj_col_idx = 2
+    if topic_col_idx == -1:
+        topic_col_idx = 5
+    if subj_col_idx == -1:
+        subj_col_idx = 2
 
     start_row = header_row + 2 if header_row != -1 else 2
     errors = defaultdict(list)
     count = 0
 
     for row in ws.iter_rows(min_row=start_row, values_only=True):
-        if len(row) <= max(topic_col_idx, subj_col_idx): continue
+        if len(row) <= max(topic_col_idx, subj_col_idx):
+            continue
 
         subj = row[subj_col_idx]
         topic = row[topic_col_idx]
@@ -77,7 +88,8 @@ def report_bad_topics_grouped(wb) -> str:
             errors[subj].append(t_str)
             count += 1
 
-    if count == 0: return "✅ Все темы верные!"
+    if count == 0:
+        return "✅ Все темы верные!"
 
     lines = [f"⚠️ <b>Темы с ошибками ({count} шт):</b>\n"]
     for subj in sorted(errors.keys()):
@@ -99,7 +111,8 @@ def report_students_bad_grades(wb) -> str:
 
     for r_idx, row in enumerate(ws.iter_rows(min_row=1, max_row=5, values_only=True)):
         for c_idx, val in enumerate(row):
-            if not isinstance(val, str): continue
+            if not isinstance(val, str):
+                continue
 
             val_clean = val.strip().lower()
 
@@ -117,7 +130,7 @@ def report_students_bad_grades(wb) -> str:
             break
 
     if fio_idx == -1 or hw_idx == -1 or cr_idx == -1:
-        return f"❌ Не нашел нужные колонки (FIO, Homework, Classroom). Проверь заголовки."
+        return "❌ Не нашел нужные колонки (FIO, Homework, Classroom). Проверь заголовки."
 
     hw_bad_list = []
     cr_bad_list = []
@@ -125,13 +138,15 @@ def report_students_bad_grades(wb) -> str:
     start_row = header_row + 2
 
     for row in ws.iter_rows(min_row=start_row, values_only=True):
-        if len(row) <= max(fio_idx, hw_idx, cr_idx): continue
+        if len(row) <= max(fio_idx, hw_idx, cr_idx):
+            continue
 
         fio = row[fio_idx]
         hw_val = row[hw_idx]
         cr_val = row[cr_idx]
 
-        if not fio: continue
+        if not fio:
+            continue
 
         try:
             hw_score = float(hw_val)
@@ -147,13 +162,11 @@ def report_students_bad_grades(wb) -> str:
         except (ValueError, TypeError):
             pass
 
-    # если вообще всё идеально
     if not hw_bad_list and not cr_bad_list:
         return "🎉 <b>Идеально!</b> Нет студентов с ДЗ=1 или КР<3."
 
     report = []
 
-    # блок ДЗ
     if hw_bad_list:
         report.append(f"📉 <b>ДЗ = 1 ({len(hw_bad_list)} чел):</b>")
         for s in hw_bad_list:
@@ -163,7 +176,6 @@ def report_students_bad_grades(wb) -> str:
 
     report.append("")
 
-    # блок КР
     if cr_bad_list:
         report.append(f"🆘 <b>КР меньше 3 ({len(cr_bad_list)} чел):</b>")
         for s in cr_bad_list:
@@ -174,7 +186,7 @@ def report_students_bad_grades(wb) -> str:
     return "\n".join(report)
 
 
-# --- Метод 4: Посещаемость по преподавателям (< 40%) ---
+# --- Метод 4: Посещаемость по преподавателям (<= 40%) ---
 def report_teachers_attendance_below_40(wb, threshold=40.0) -> str:
     ws = wb.worksheets[0]
 
@@ -182,7 +194,6 @@ def report_teachers_attendance_below_40(wb, threshold=40.0) -> str:
     avg_idx = -1
     header_row = -1
 
-    # Ищем строку заголовков
     for r_idx, row in enumerate(ws.iter_rows(min_row=1, max_row=10, values_only=True), start=1):
         for c_idx, val in enumerate(row):
             if not isinstance(val, str):
@@ -205,12 +216,10 @@ def report_teachers_attendance_below_40(wb, threshold=40.0) -> str:
         if x is None:
             return None
 
-        # Если Excel отдал число
         if isinstance(x, (int, float)):
             val = float(x)
             return val * 100 if 0 <= val <= 1 else val
 
-        # Если Excel отдал строку типа "73%"
         s = str(x).strip().replace("%", "").replace(",", ".")
         if not s:
             return None
@@ -235,15 +244,234 @@ def report_teachers_attendance_below_40(wb, threshold=40.0) -> str:
             bad.append((avg, str(fio).strip()))
 
     if not bad:
-        return f"✅ <b>Посещаемость ниже {int(threshold)}%</b>: преподавателей не найдено."
+        return f"✅ <b>Посещаемость {int(threshold)}% и ниже</b>: преподавателей не найдено."
 
     bad.sort(key=lambda x: x[0])
 
-    lines = [f"⚠️ <b>Посещаемость ниже {int(threshold)}%:</b>\n"]
+    lines = [f"⚠️ <b>Посещаемость {int(threshold)}% и ниже:</b>\n"]
     for avg, fio in bad:
         lines.append(f"• <b>{fio}</b>: {avg:.0f}%")
 
     return "\n".join(lines)
+
+
+# --- Метод 5: Проверенные домашние задания (< 70%) ---
+def report_checked_homework_below_70(wb, threshold=70.0) -> str:
+    ws = wb.worksheets[0]
+
+    def norm(x) -> str:
+        return str(x).strip().lower() if x is not None else ""
+
+    def to_num(x):
+        if x is None:
+            return None
+        try:
+            return float(str(x).replace(",", ".").strip())
+        except (ValueError, TypeError):
+            return None
+
+    def calc_pct(checked, received):
+        if checked is None or received is None:
+            return None
+        if received <= 0:
+            return None
+        return (checked / received) * 100.0
+
+    header_row = None
+    header_vals = None
+    for r_idx, row in enumerate(ws.iter_rows(min_row=1, max_row=10, values_only=True), start=1):
+        row_norm = [norm(c) for c in row]
+        joined = " ".join(row_norm)
+        if (("месяц" in joined or "мес" in joined) and ("нед" in joined) and ("день" in joined)):
+            header_row = r_idx
+            header_vals = row_norm
+            break
+
+    if header_row is None:
+        return "❌ Метод 5: не нашёл строку шапки с 'месяц/неделя/день'."
+
+    fio_idx = -1
+    for i, h in enumerate(header_vals):
+        if "фио" in h or "преподав" in h:
+            fio_idx = i
+            break
+    if fio_idx == -1:
+        fio_idx = 0
+
+    start = fio_idx + 1
+
+    raw_names = []
+    for b in range(3):
+        idx = start + b * 5
+        nm = header_vals[idx] if idx < len(header_vals) else ""
+        raw_names.append(nm)
+
+    pretty = []
+    for nm in raw_names:
+        if "месяц" in nm or "мес" in nm:
+            pretty.append("За месяц")
+        elif "нед" in nm:
+            pretty.append("За неделю")
+        elif "день" in nm:
+            pretty.append("За день")
+        else:
+            pretty.append(nm if nm else f"Период {len(pretty)+1}")
+
+    RECEIVED_OFF = 2
+    CHECKED_OFF = 3
+
+    bad = {0: [], 1: [], 2: []}
+
+    for row in ws.iter_rows(min_row=header_row + 1, values_only=True):
+        if len(row) <= fio_idx:
+            continue
+
+        fio = row[fio_idx]
+        if not fio:
+            continue
+        fio = str(fio).strip()
+
+        for p in range(3):
+            base = start + p * 5
+            if len(row) <= base + max(RECEIVED_OFF, CHECKED_OFF):
+                continue
+
+            received = to_num(row[base + RECEIVED_OFF])
+            checked = to_num(row[base + CHECKED_OFF])
+            pct = calc_pct(checked, received)
+
+            if pct is None:
+                continue
+
+            if pct < threshold:
+                bad[p].append((pct, fio, int(checked), int(received)))
+
+    if not bad[0] and not bad[1] and not bad[2]:
+        return f"✅ <b>Метод 5:</b> преподавателей с процентом проверенных ДЗ ниже {int(threshold)}% не найдено."
+
+    lines = [f"⚠️ <b>Проверенные ДЗ ниже {int(threshold)}%:</b>\n"]
+
+    for p in range(3):
+        if bad[p]:
+            bad[p].sort(key=lambda x: x[0])
+            lines.append(f"📌 <b>{pretty[p]}:</b>")
+            for pct, fio, checked, received in bad[p]:
+                lines.append(f"• <b>{fio}</b>: {pct:.0f}% (проверено {checked} из {received})")
+            lines.append("")
+        else:
+            lines.append(f"✅ <b>{pretty[p]}:</b> все >= порога.")
+            lines.append("")
+
+    return "\n".join(lines).rstrip()
+
+
+# --- Метод 6: Отчет по сданным домашним заданиям (< 70%) ---
+def report_students_homework_completion_below_70(wb, threshold=70.0) -> str:
+    ws = wb.worksheets[0]
+
+    def norm(x) -> str:
+        return str(x).strip().lower() if x is not None else ""
+
+    def to_percent(x):
+        if x is None:
+            return None
+
+        if isinstance(x, (int, float)):
+            val = float(x)
+            return val * 100 if 0 <= val <= 1 else val
+
+        s = str(x).strip().replace("%", "").replace(",", ".")
+        if not s:
+            return None
+        try:
+            val = float(s)
+            return val * 100 if 0 <= val <= 1 else val
+        except ValueError:
+            return None
+
+    fio_idx = -1
+    pct_idx = -1
+    header_row = -1
+
+    for r_idx, row in enumerate(ws.iter_rows(min_row=1, max_row=10, values_only=True), start=1):
+        row_norm = [norm(c) for c in row]
+
+        for c_idx, v in enumerate(row_norm):
+            if v in ("fio", "фио"):
+                fio_idx = c_idx
+            if v == "percentage homework":
+                pct_idx = c_idx
+
+        if fio_idx != -1 and pct_idx != -1:
+            header_row = r_idx
+            break
+
+    if header_row == -1:
+        return "❌ Метод 6: не нашёл заголовки 'FIO' и 'Percentage Homework'."
+
+    bad = []
+    for row in ws.iter_rows(min_row=header_row + 1, values_only=True):
+        if len(row) <= max(fio_idx, pct_idx):
+            continue
+
+        fio = row[fio_idx]
+        pct = to_percent(row[pct_idx])
+
+        if not fio or pct is None:
+            continue
+
+        fio = str(fio).strip()
+
+        if pct < threshold:
+            bad.append((pct, fio))
+
+    if not bad:
+        return f"✅ <b>Метод 6:</b> студентов с % выполненных ДЗ ниже {int(threshold)}% не найдено."
+
+    bad.sort(key=lambda x: x[0])
+
+    lines = [f"⚠️ <b>% выполненных ДЗ ниже {int(threshold)}%:</b>\n"]
+    for pct, fio in bad:
+        lines.append(f"• <b>{fio}</b>: {pct:.0f}%")
+
+    return "\n".join(lines)
+
+
+# ---------- ДЛЯ КНОПОК МЕТОДОВ 3/6 ----------
+
+def _load_wb_from_bytes(data: bytes):
+    return openpyxl.load_workbook(io.BytesIO(data), data_only=True)  # загрузка из bytes
+
+
+def process_students_bad_grades_from_bytes(data: bytes) -> str:
+    if detect_excel_type(data) != "xlsx":
+        return "❌ Нужен файл .xlsx"
+    wb = _load_wb_from_bytes(data)
+    return report_students_bad_grades(wb)
+
+
+def process_students_hw_completion_from_bytes(data: bytes) -> str:
+    if detect_excel_type(data) != "xlsx":
+        return "❌ Нужен файл .xlsx"
+    wb = _load_wb_from_bytes(data)
+    return report_students_homework_completion_below_70(wb, threshold=70.0)
+
+
+def is_students_reports_3_or_6(data: bytes) -> bool:
+    if detect_excel_type(data) != "xlsx":
+        return False
+    try:
+        wb = _load_wb_from_bytes(data)
+        ws = wb.worksheets[0]
+        for row in ws.iter_rows(min_row=1, max_row=10, values_only=True):
+            row_str = [str(c).strip().lower() for c in row if c is not None]
+            has_fio = any(s in ("fio", "фио") for s in row_str)
+            has_any = any(s in ("homework", "classroom", "percentage homework") for s in row_str)
+            if has_fio and has_any:
+                return True
+        return False
+    except Exception:
+        return False
 
 
 # --- Главный маршрутизатор ---
@@ -252,39 +480,53 @@ def process_excel_file(data: bytes) -> str:
         return "❌ Нужен файл .xlsx"
 
     try:
-        wb = openpyxl.load_workbook(io.BytesIO(data), data_only=True)
+        wb = _load_wb_from_bytes(data)
         ws = wb.worksheets[0]
 
         is_teachers_attendance = False
+        is_checked_homework = False
+        is_students_hw_completion = False
         is_students = False
         is_topics = False
 
-        for row in ws.iter_rows(max_row=10, values_only=True):
+        for row in ws.iter_rows(max_row=15, values_only=True):
             row_str = [str(c).strip().lower() for c in row if c]
 
-            # Сначала проверяем посещаемость по преподавателям
             if any("фио преподавателя" in s for s in row_str) and any("средняя посещаемость" in s for s in row_str):
                 is_teachers_attendance = True
                 break
 
-            # Потом — отчет по студентам
+            if (any("месяц" in s or "мес" in s for s in row_str)
+                    and any("нед" in s for s in row_str)
+                    and any("день" in s for s in row_str)):
+                is_checked_homework = True
+                break
+
+            if (any(s == "fio" or s == "фио" for s in row_str)
+                    and any("percentage homework" in s for s in row_str)):
+                is_students_hw_completion = True
+                break
+
             if any("fio" in s or "фио" in s for s in row_str) and any("homework" in s for s in row_str):
                 is_students = True
                 break
 
-            # Потом — темы уроков
             if any("тема урока" in s for s in row_str):
                 is_topics = True
                 break
 
         if is_teachers_attendance:
             return report_teachers_attendance_below_40(wb, threshold=40.0)
+        elif is_checked_homework:
+            return report_checked_homework_below_70(wb, threshold=70.0)
+        elif is_students_hw_completion:
+            return report_students_homework_completion_below_70(wb, threshold=70.0)
         elif is_students:
             return report_students_bad_grades(wb)
         elif is_topics:
             return report_bad_topics_grouped(wb)
         else:
-            return report_schedule_count(wb)  # по дефолту пробуем расписание
+            return report_schedule_count(wb)
 
     except Exception as e:
         return f"❌ Ошибка обработки: {e}"
